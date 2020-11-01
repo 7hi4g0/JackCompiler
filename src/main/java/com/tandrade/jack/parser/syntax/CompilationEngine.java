@@ -163,12 +163,16 @@ public class CompilationEngine {
                 compileLetStatement();
                 break;
             case "if":
+                compileIfStatement();
                 break;
             case "while":
+                compileWhileStatement();
                 break;
             case "do":
+                compileDoStatement();
                 break;
             case "return":
+                compileReturnStatement();
                 break;
             default:
                 return false;
@@ -181,8 +185,222 @@ public class CompilationEngine {
         output.add("<letStatement>");
 
         consumeToken(TokenType.KEYWORD, "let");
+        consumeToken(TokenType.IDENTIFIER);
+
+        if (testToken(TokenType.SYMBOL, "[")) {
+            consumeToken();
+            compileExpression();
+            consumeToken(TokenType.SYMBOL, "]");
+        }
+
+        consumeToken(TokenType.SYMBOL, "=");
+
+        compileExpression();
+
+        consumeToken(TokenType.SYMBOL, ";");
 
         output.add("</letStatement>");
+    }
+
+    public void compileIfStatement() {
+        output.add("<ifStatement>");
+
+        consumeToken(TokenType.KEYWORD, "if");
+
+        consumeToken(TokenType.SYMBOL, "(");
+        compileExpression();
+        consumeToken(TokenType.SYMBOL, ")");
+
+        consumeToken(TokenType.SYMBOL, "{");
+
+        compileStatements();
+
+        consumeToken(TokenType.SYMBOL, "}");
+
+        if (testToken(TokenType.KEYWORD, "else")) {
+            consumeToken();
+
+            consumeToken(TokenType.SYMBOL, "{");
+    
+            compileStatements();
+    
+            consumeToken(TokenType.SYMBOL, "}");
+        }
+
+        output.add("</ifStatement>");
+    }
+
+    public void compileWhileStatement() {
+        output.add("<whileStatement>");
+
+        consumeToken(TokenType.KEYWORD, "while");
+
+        consumeToken(TokenType.SYMBOL, "(");
+        compileExpression();
+        consumeToken(TokenType.SYMBOL, ")");
+
+        consumeToken(TokenType.SYMBOL, "{");
+
+        compileStatements();
+
+        consumeToken(TokenType.SYMBOL, "}");
+
+        output.add("</whileStatement>");
+    }
+
+    public void compileDoStatement() {
+        output.add("<doStatement>");
+
+        consumeToken(TokenType.KEYWORD, "do");
+
+        consumeToken(TokenType.IDENTIFIER);
+
+        if (testToken(TokenType.SYMBOL, ".")) {
+            consumeToken();
+            consumeToken(TokenType.IDENTIFIER);
+        }
+
+        consumeToken(TokenType.SYMBOL, "(");
+        compileExpressionList();
+        consumeToken(TokenType.SYMBOL, ")");
+
+        consumeToken(TokenType.SYMBOL, ";");
+
+        output.add("</doStatement>");
+    }
+
+    public void compileReturnStatement() {
+        output.add("<returnStatement>");
+
+        consumeToken(TokenType.KEYWORD, "return");
+
+        if (!testToken(TokenType.SYMBOL, ";")) {
+            compileExpression();
+        }
+
+        consumeToken(TokenType.SYMBOL, ";");
+
+        output.add("</returnStatement>");
+    }
+
+    public void compileTerm() {
+        output.add("<term>");
+
+        Token token = tokenizer.getCurrentToken();
+
+        switch (token.getTokenType()) {
+            case INT_CONST:
+            case STR_CONST:
+                consumeToken();
+                break;
+            case KEYWORD: {
+                switch (token.getValue()) {
+                    case "true":
+                    case "false":
+                    case "null":
+                    case "this":
+                        consumeToken();
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unexpected token: " + token);
+                }
+            }
+                break;
+            case SYMBOL:{
+                switch (token.getValue()) {
+                    case "(":
+                        consumeToken();
+                        compileExpression();
+                        consumeToken(TokenType.SYMBOL, ")");
+                        break;
+                    case "-":
+                    case "~":
+                        consumeToken();
+                        compileTerm();
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unexpected token: " + token);
+                }
+            }
+                break;
+            case IDENTIFIER: {
+                consumeToken();
+
+                if (testToken(TokenType.SYMBOL)){
+                    switch (tokenizer.getCurrentToken().getValue()) {
+                        case "[":{
+                            consumeToken();
+                            compileExpression();
+                            consumeToken(TokenType.SYMBOL, "]");
+                        }
+                        break;
+                        case ".":{
+                            consumeToken();
+        
+                            consumeToken(TokenType.IDENTIFIER);
+                        }
+                        case "(":{
+                            consumeToken(TokenType.SYMBOL, "(");
+                            compileExpressionList();
+                            consumeToken(TokenType.SYMBOL, ")");
+                        }
+                        break;
+                    }
+                }
+            }
+                break;
+        }
+
+        output.add("</term>");
+    }
+
+    public boolean compileOp() {
+        if (!testToken(TokenType.SYMBOL)) {
+            return false;
+        }
+
+        switch (tokenizer.getCurrentToken().getValue()) {
+            case "+":
+            case "-":
+            case "*":
+            case "/":
+            case "&":
+            case "|":
+            case "<":
+            case ">":
+            case "=":
+                consumeToken();
+                return true;
+        }
+
+        return false;
+    }
+
+    public void compileExpression() {
+        output.add("<expression>");
+
+        compileTerm();
+
+        while (compileOp()) {
+            compileTerm();
+        }
+
+        output.add("</expression>");
+    }
+
+    public void compileExpressionList() {
+        output.add("<expressionList>");
+
+        if (!testToken(TokenType.SYMBOL, ")")) {
+            compileExpression();
+
+            while (testToken(TokenType.SYMBOL, ",")) {
+                consumeToken();
+                compileExpression();
+            }
+        }
+
+        output.add("</expressionList>");
     }
 
     private boolean testToken(TokenType type) {

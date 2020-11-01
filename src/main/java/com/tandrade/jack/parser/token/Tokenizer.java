@@ -1,3 +1,5 @@
+package com.tandrade.jack.parser.token;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -121,35 +123,6 @@ public class Tokenizer {
             Path outputFilename = file.toPath().resolveSibling(filename.substring(0, extIndex) + "Tokens.xml");
 
             Files.write(outputFilename, tokenTags, StandardOpenOption.WRITE, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-        }
-    }
-
-    public class Token {
-        private TokenType type;
-        private String value;
-
-        public Token(TokenType type, String value) {
-            this.type = type;
-            this.value = value;
-        }
-
-        @Override
-        public String toString() {
-            return "<" + type.element + "> " + value + " </" + type.element + ">";
-        }
-    }
-
-    public enum TokenType {
-        KEYWORD("keyword"),
-        SYMBOL("symbol"),
-        IDENTIFIER("identifier"),
-        INT_CONST("integerConstant"),
-        STR_CONST("stringConstant");
-
-        private String element;
-
-        private TokenType(String element) {
-            this.element = element;
         }
     }
 

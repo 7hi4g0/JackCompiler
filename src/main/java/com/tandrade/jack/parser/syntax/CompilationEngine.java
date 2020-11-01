@@ -31,12 +31,43 @@ public class CompilationEngine {
         consumeToken(TokenType.IDENTIFIER);
         consumeToken(TokenType.SYMBOL, "{");
 
+        while (compileClassVarDec()) {
+        }
         while (compileSubroutine()) {
         }
 
         consumeToken(TokenType.SYMBOL, "}");
 
         output.add("</class>");
+    }
+
+    public boolean compileClassVarDec() {
+        if (!testToken(TokenType.KEYWORD)) {
+            return false;
+        }
+        if (!testToken(TokenType.KEYWORD, "static") &&
+            !testToken(TokenType.KEYWORD, "field")) {
+            return false;
+        }
+
+        output.add("<classVarDec>");
+
+        consumeToken();
+
+        compileType();
+
+        consumeToken(TokenType.IDENTIFIER);
+
+        while (testToken(TokenType.SYMBOL, ",")) {
+            consumeToken();
+            consumeToken(TokenType.IDENTIFIER);
+        }
+
+        consumeToken(TokenType.SYMBOL, ";");
+        
+        output.add("</classVarDec>");
+
+        return true;
     }
 
     public boolean compileSubroutine() {
@@ -63,7 +94,6 @@ public class CompilationEngine {
 
         compileSubroutineBody();
 
-        
         output.add("</subroutineDec>");
 
         return true;

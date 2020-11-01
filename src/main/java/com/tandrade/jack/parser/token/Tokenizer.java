@@ -91,6 +91,18 @@ public class Tokenizer {
         buf.close();
     }
 
+    public boolean hasMoreTokens() {
+        return !tokens.isEmpty();
+    }
+
+    public Token getCurrentToken() {
+        return tokens.element();
+    }
+
+    public Token advance() {
+        return tokens.remove();
+    }
+
     public static void main(String[] args) throws IOException {
         if (args.length != 1) {
             System.err.println("Usage: Tokenizer <file|directory>");

@@ -106,13 +106,6 @@ public class CompilationEngine {
         return true;
     }
 
-    public void addClassVariable(VarScope scope, String type, String name) {
-        int index = variableCount.get(scope);
-        variableCount.put(scope, index + 1);
-
-        classVariableTable.put(name, new VarInfo(type, scope, index));
-    }
-
     public boolean compileSubroutine() {
         if (!testToken(TokenType.KEYWORD)) {
             return false;
@@ -131,7 +124,7 @@ public class CompilationEngine {
         variableCount.put(VarScope.ARGUMENT, 0);
         variableCount.put(VarScope.LOCAL, 0);
 
-        if (!subroutineType.equals("function")) {
+        if (subroutineType.equals("method")) {
             addLocalVariable(VarScope.ARGUMENT, currentClassName, "this");
         }
 
@@ -197,6 +190,13 @@ public class CompilationEngine {
         }
     }
 
+    public void addClassVariable(VarScope scope, String type, String name) {
+        int index = variableCount.get(scope);
+        variableCount.put(scope, index + 1);
+
+        classVariableTable.put(name, new VarInfo(type, scope, index));
+    }
+
     public void addLocalVariable(VarScope scope, String type, String name) {
         int index = variableCount.get(scope);
         variableCount.put(scope, index + 1);
@@ -219,7 +219,16 @@ public class CompilationEngine {
 
         while (compileVarDec()) {}
 
-        output.add(subroutineType + " " + subroutineName + " " + variableCount.get(VarScope.LOCAL));
+        output.add("function " + subroutineName + " " + variableCount.get(VarScope.LOCAL));
+
+        if (subroutineType.equals("constructor")) {
+            output.add("push constant " + variableCount.get(VarScope.FIELD));
+            output.add("call Memory.alloc 1");
+            output.add("pop pointer 0");
+        } else if (subroutineType.equals("method")) {
+            output.add("push argument 0");
+            output.add("pop pointer 0");
+        }
 
         compileStatements();
 
@@ -302,7 +311,7 @@ public class CompilationEngine {
         if (testToken(TokenType.SYMBOL, "[")) {
             arrayWrite = true;
 
-            output.add("push " + info.getScope().toString().toLowerCase() + " " + info.getIndex());
+            output.add("push " + info.getScope().getSegment() + " " + info.getIndex());
 
             consumeToken();
             compileExpression();
@@ -321,20 +330,28 @@ public class CompilationEngine {
             output.add("push temp 0");
             output.add("pop that 0");
         } else {
-            output.add("pop " + info.getScope().toString().toLowerCase() + " " + info.getIndex());
+            output.add("pop " + info.getScope().getSegment() + " " + info.getIndex());
         }
 
         consumeToken(TokenType.SYMBOL, ";");
     }
 
     public void compileIfStatement() {
-        output.add("<ifStatement>");
-
         consumeToken(TokenType.KEYWORD, "if");
+
+        int count = 0;
+        if (localLabelCount.containsKey("if")) {
+            count = localLabelCount.get("if");
+        }
+        localLabelCount.put("if", count + 1);
 
         consumeToken(TokenType.SYMBOL, "(");
         compileExpression();
         consumeToken(TokenType.SYMBOL, ")");
+
+        output.add("if-goto IF-TRUE" + count);
+        output.add("goto IF-FALSE" + count);
+        output.add("label IF-TRUE" + count);
 
         consumeToken(TokenType.SYMBOL, "{");
 
@@ -345,14 +362,19 @@ public class CompilationEngine {
         if (testToken(TokenType.KEYWORD, "else")) {
             consumeToken();
 
+            output.add("goto IF-END" + count);
+            output.add("label IF-FALSE" + count);
+
             consumeToken(TokenType.SYMBOL, "{");
     
             compileStatements();
     
             consumeToken(TokenType.SYMBOL, "}");
-        }
 
-        output.add("</ifStatement>");
+            output.add("label IF-END" + count);
+        } else {
+            output.add("label IF-FALSE" + count);
+        }
     }
 
     public void compileWhileStatement() {
@@ -390,6 +412,7 @@ public class CompilationEngine {
         String variableOrClassOrSubroutine = lastToken.getValue();
         String className = currentClassName;
         String subroutineName = variableOrClassOrSubroutine;
+        int parameterCount = 0;
 
         if (testToken(TokenType.SYMBOL, ".")) {
             consumeToken();
@@ -402,13 +425,19 @@ public class CompilationEngine {
 
             if (info != null) {
                 className = info.getType();
+                parameterCount = 1;
+                output.add("push " + info.getScope().getSegment() + " " + info.getIndex());
             }
+        } else {
+            parameterCount = 1;
+            output.add("push pointer 0");
         }
 
         consumeToken(TokenType.SYMBOL, "(");
-        compileExpressionList(className + "." + subroutineName);
+        parameterCount += compileExpressionList();
         consumeToken(TokenType.SYMBOL, ")");
 
+        output.add("call " + className + "." + subroutineName + " " + parameterCount);
         output.add("pop temp 0");
 
         consumeToken(TokenType.SYMBOL, ";");
@@ -450,10 +479,21 @@ public class CompilationEngine {
             case KEYWORD: {
                 switch (token.getValue()) {
                     case "true":
+                        consumeToken();
+                        output.add("push constant 0");
+                        output.add("not");
+                        break;
                     case "false":
+                        consumeToken();
+                        output.add("push constant 0");
+                        break;
                     case "null":
+                        consumeToken();
+                        output.add("push constant 0");
+                        break;
                     case "this":
                         consumeToken();
+                        output.add("push pointer 0");
                         break;
                     default:
                         throw new IllegalArgumentException("Unexpected token: " + token);
@@ -484,13 +524,14 @@ public class CompilationEngine {
                 String variableOrClassOrSubroutine = lastToken.getValue();
                 String className = currentClassName;
                 String subroutineName = variableOrClassOrSubroutine;
+                int parameterCount = 0;
                 boolean treated = false;
 
                 if (testToken(TokenType.SYMBOL)){
                     switch (tokenizer.getCurrentToken().getValue()) {
                         case "[":{
                             VarInfo info = getVarInfo(variableOrClassOrSubroutine);
-                            output.add("push " + info.getScope().toString().toLowerCase() + " " + info.getIndex());
+                            output.add("push " + info.getScope().getSegment() + " " + info.getIndex());
 
                             consumeToken();
                             compileExpression();
@@ -515,12 +556,21 @@ public class CompilationEngine {
 
                             if (info != null) {
                                 className = info.getType();
+                                parameterCount = 1;
+                                output.add("push " + info.getScope().getSegment() + " " + info.getIndex());
                             }
                         }
                         case "(":{
+                            if (subroutineName == variableOrClassOrSubroutine) {
+                                parameterCount = 1;
+                                output.add("push pointer 0");
+                            }
+
                             consumeToken(TokenType.SYMBOL, "(");
-                            compileExpressionList(className + "." + subroutineName);
+                            parameterCount += compileExpressionList();
                             consumeToken(TokenType.SYMBOL, ")");
+
+                            output.add("call " + className + "." + subroutineName + " " + parameterCount);
                             treated = true;
                         }
                         break;
@@ -530,7 +580,7 @@ public class CompilationEngine {
                 if (!treated) {
                     VarInfo info = getVarInfo(variableOrClassOrSubroutine);
 
-                    output.add("push " + info.getScope().toString().toLowerCase() + " " + info.getIndex());
+                    output.add("push " + info.getScope().getSegment() + " " + info.getIndex());
                 }
             }
                 break;
@@ -570,7 +620,7 @@ public class CompilationEngine {
         }
     }
 
-    public void compileExpressionList(String subroutineName) {
+    public int compileExpressionList() {
         int parameterCount = 0;
 
         if (!testToken(TokenType.SYMBOL, ")")) {
@@ -584,7 +634,7 @@ public class CompilationEngine {
             }
         }
 
-        output.add("call " + subroutineName + " " + parameterCount);
+        return parameterCount;
     }
 
     private boolean testToken(TokenType type) {

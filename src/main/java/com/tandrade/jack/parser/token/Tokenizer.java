@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 public class Tokenizer {
     private static final String keywordRegex = "(class|constructor|function|method|field|static|var|int|char|boolean|void|true|false|null|this|let|do|if|else|while|return)\\b";
     private static final String symbolRegex = "([{}()\\[\\].,;+\\-*/&|<>=~])";
-    private static final String constantRegex = "(\\d{1,4}|[12]\\d{4}|3[01]\\d{3}|32[0-6]\\d{2}|327[0-5]\\d|3276[0-7])";
+    private static final String constantRegex = "(3276[0-7]|327[0-5]\\d|32[0-6]\\d{2}|3[01]\\d{3}|[12]\\d{4}|\\d{1,4})";
     private static final String stringRegex = "\"([^\"\n\r]*)\"";
     private static final String identifierRegex = "([a-zA-Z_]\\w*)\\b";
 

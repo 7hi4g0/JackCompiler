@@ -471,8 +471,8 @@ public class CompilationEngine {
                 output.add("push constant " + stringConstant.length());
                 output.add("call String.new 1");
 
-                stringConstant.chars().forEach(code -> {
-                    output.add("push constant " + code);
+                stringConstant.chars().forEach(charCode -> {
+                    output.add("push constant " + charCode);
                     output.add("call String.appendChar 2");
                 });
                 break;
@@ -579,6 +579,10 @@ public class CompilationEngine {
                 
                 if (!treated) {
                     VarInfo info = getVarInfo(variableOrClassOrSubroutine);
+
+                    if (info == null) {
+                        throw new IllegalArgumentException("Unknown variable: " + variableOrClassOrSubroutine);
+                    }
 
                     output.add("push " + info.getScope().getSegment() + " " + info.getIndex());
                 }
